@@ -1,0 +1,160 @@
+<?php
+// --- DATABASE CONNECTION AND INITIAL SETUP ---
+$host = "localhost";
+$user = "root";
+$pass = "";
+$dbname = "gymdb";
+
+// Create connection
+$conn = new mysqli($host, $user, $pass);
+
+// Create DB if not exists
+$conn->query("CREATE DATABASE IF NOT EXISTS $dbname");
+$conn->select_db($dbname);
+
+// Create tables
+$conn->query("
+CREATE TABLE IF NOT EXISTS Plans (
+    PlanID INT PRIMARY KEY AUTO_INCREMENT,
+    PlanName VARCHAR(50),
+    DurationMonths INT,
+    Price DECIMAL(10,2)
+)");
+
+$conn->query("
+CREATE TABLE IF NOT EXISTS Members (
+    MemberID INT PRIMARY KEY AUTO_INCREMENT,
+    Name VARCHAR(100),
+    Age INT,
+    Gender VARCHAR(10),
+    Phone VARCHAR(15),
+    Email VARCHAR(100),
+    JoinDate DATE,
+    PlanID INT,
+    FOREIGN KEY (PlanID) REFERENCES Plans(PlanID)
+)");
+
+// Insert default plans if empty
+$checkPlans = $conn->query("SELECT COUNT(*) as count FROM Plans");
+$count = $checkPlans->fetch_assoc()['count'];
+if ($count == 0) {
+    $conn->query("INSERT INTO Plans (PlanName, DurationMonths, Price) VALUES 
+        ('Monthly', 1, 1000.00),
+        ('Quarterly', 3, 2700.00),
+        ('Yearly', 12, 10000.00)");
+}
+
+// --- HANDLE FORM SUBMISSION ---
+$message = "";
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $name = $_POST["name"];
+    $age = $_POST["age"];
+    $gender = $_POST["gender"];
+    $phone = $_POST["phone"];
+    $email = $_POST["email"];
+    $plan_id = $_POST["plan_id"];
+    $join_date = date('Y-m-d');
+
+    $stmt = $conn->prepare("INSERT INTO Members (Name, Age, Gender, Phone, Email, JoinDate, PlanID)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("sissssi", $name, $age, $gender, $phone, $email, $join_date, $plan_id);
+
+    if ($stmt->execute()) {
+        $message = "✅ Member registered successfully!";
+    } else {
+        $message = "❌ Error: " . $stmt->error;
+    }
+    $stmt->close();
+}
+?>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gym Management System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        h1 {
+            color: #2d89ef;
+        }
+
+        form {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            width: 350px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        input[type="submit"] {
+            background-color: #2d89ef;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        .message {
+            margin: 20px 0;
+            padding: 10px;
+            background-color: #e6ffe6;
+            border-left: 4px solid #4CAF50;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Register New Member</h1>
+
+<?php if ($message): ?>
+    <div class="message"><?= $message ?></div>
+<?php endif; ?>
+
+<form method="post">
+    <label>Name:</label>
+    <input type="text" name="name" required>
+
+    <label>Age:</label>
+    <input type="number" name="age" required>
+
+    <label>Gender:</label>
+    <select name="gender" required>
+        <option value="Male">Male</option>
+        <option value="Female">Female</option>
+    </select>
+
+    <label>Phone:</label>
+    <input type="text" name="phone" required>
+
+    <label>Email:</label>
+    <input type="email" name="email" required>
+
+    <label>Plan:</label>
+    <select name="plan_id" required>
+        <?php
+        $plans = $conn->query("SELECT * FROM Plans");
+        while ($row = $plans->fetch_assoc()) {
+            echo "<option value='{$row['PlanID']}'>{$row['PlanName']} - ₹{$row['Price']}</option>";
+        }
+        ?>
+    </select>
+
+    <input type="submit" value="Register">
+</form>
+
+</body>
+</html>
